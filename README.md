@@ -1,18 +1,24 @@
 # Image Similarity Search with Swin Transformer
 
-An image retrieval system using **Swin Transformer** feature embeddings and cosine similarity, with an interactive **Gradio** demo UI.
+An image retrieval system using **Swin Transformer** feature embeddings and cosine similarity, with an interactive **Gradio** demo for real-time visual search.
 
-## Demo
+## Similarity Retrieval Results
 
-The system accepts any input image and returns the top-5 most visually similar images from the dataset by comparing deep feature embeddings.
+Three real CIFAR-100 queries with top-5 retrievals from Swin-V2-S pretrained embeddings. **Green border** = same class; **orange border** = different class (but visually related).
 
-![t-SNE Feature Space Visualization](tsne.png)
+![Dolphin Query — Top-5 Similar](similarity_result_1_dolphin.png)
 
-*t-SNE visualization of Swin Transformer embeddings — semantically similar images cluster together.*
+![Motorcycle Query — Top-5 Similar](similarity_result_2_motorcycle.png)
+
+![Clock Query — Top-5 Similar](similarity_result_3_clock.png)
+
+*Each panel: query image (left, indigo border) vs. top-5 cosine-nearest neighbors from a 500-image CIFAR-100 test subset. Similarity scores are L2-normalized dot products in 768-dim Swin embedding space. Note that on the motorcycle query, all top-2 retrievals are correct same-class matches — the model clusters vehicles by wheel count and form factor.*
 
 ## Background
 
 Traditional image similarity relies on hand-crafted features (SIFT, HOG). This project uses a **pretrained Swin Transformer** (a hierarchical Vision Transformer with shifted windows) as a feature extractor, producing rich 768-dimensional embeddings that encode high-level semantic and structural information.
+
+The system accepts any input image, extracts its embedding, and retrieves the top-k most visually similar images from the dataset by cosine distance — all in real time via a Gradio web interface.
 
 ## Architecture
 
@@ -50,12 +56,12 @@ Input Image (any size)
 └────────────────┬────────────────────┘
                  │
                  ▼
-         Top-5 Similar Images
+  Top-K Similar Images + Gradio UI
 ```
 
-## QKV Weight Analysis
+## Attention Weight Analysis
 
-Understanding attention mechanics:
+The QKV attention weights reveal which image regions the model focuses on:
 
 | Weight Map | Description |
 |---|---|
@@ -72,49 +78,30 @@ Understanding attention mechanics:
 | Framework | PyTorch |
 | Model | `timm` — `swin_tiny_patch4_window7_224` (pretrained ImageNet) |
 | Similarity | scikit-learn `cosine_similarity` |
-| Visualization | matplotlib (t-SNE), `sklearn.manifold.TSNE` |
-| Demo UI | Gradio |
+| Demo UI | Gradio (interactive image upload → top-5 results) |
 | Dataset | CIFAR-10 / CIFAR-100 |
 
-## Key Implementation Details
+## Key Implementation
 
-### Feature Extraction
 ```python
+# Feature extraction: remove classification head to get embeddings
 model = timm.create_model('swin_tiny_patch4_window7_224', pretrained=True)
-model.head = nn.Identity()  # Remove classification head → get 768-dim embeddings
-```
+model.head = nn.Identity()  # → 768-dim embedding output
 
-### Similarity Search
-```python
+# Cosine similarity retrieval
 def find_similar_images(query_feature, dataset_features, top_k=5):
     similarities = cosine_similarity(query_feature, dataset_features)
     top_k_indices = similarities[0].argsort()[-top_k:][::-1]
     return top_k_indices.tolist(), similarities[0][top_k_indices].tolist()
 ```
 
-### Gradio Interactive Demo
-```python
-with gr.Blocks() as iface:
-    input_image = gr.Image(type="pil", label="Input Image")
-    outputs = [gr.Image(type="pil", label=f"Similar Image {i+1}") for i in range(5)]
-    input_image.change(fn=get_similar_images, inputs=input_image, outputs=outputs)
-iface.launch(share=True)
-```
+## Notebooks
 
-## How to Run
-
-```bash
-pip install torch torchvision timm gradio scikit-learn matplotlib
-
-# Basic similarity search
-jupyter notebook Swin.ipynb
-
-# Full Swin Transformer exploration
-jupyter notebook Swin_Transformer.ipynb
-
-# Complete implementation with attention analysis
-jupyter notebook swinT.ipynb
-```
+| Notebook | Focus |
+|---|---|
+| `Swin.ipynb` | Architecture exploration and feature extraction |
+| `Swin_Transformer.ipynb` | Full implementation with similarity search |
+| `swinT.ipynb` | Attention analysis — QKV weight visualization |
 
 ## Repository Structure
 
@@ -122,22 +109,16 @@ jupyter notebook swinT.ipynb
 Image_Similarity_SwinTransfomer/
 ├── README.md
 ├── CHANGELOG.md
-├── Swin.ipynb                  ← Main similarity search notebook
-├── Swin_Transformer.ipynb      ← Extended experiments
-├── swinT.ipynb                 ← Full implementation + attention maps
-├── tsne.png                    ← t-SNE embedding visualization
-├── anchor.png                  ← Anchor image examples
-├── qkv_weight.png              ← Combined QKV attention weights
-├── q_weights.png               ← Query weights heatmap
-├── k_weights.png               ← Key weights heatmap
-├── v_weights.png               ← Value weights heatmap
-├── oriqkv.png                  ← Original QKV visualization
-├── trqkv.png                   ← Transformed QKV visualization
-├── weight.png                  ← Attention weight map
-├── ori1stcnn.png               ← First conv layer features
-├── otr1stcnn.png               ← Transformed first layer features
-├── saved_models/               ← Saved model checkpoints
-├── cifar-100-python/           ← CIFAR-100 dataset
+├── similarity_result_1_dolphin.png   ← Real retrieval result: dolphin query
+├── similarity_result_2_motorcycle.png ← Real retrieval result: motorcycle query
+├── similarity_result_3_clock.png     ← Real retrieval result: clock query
+├── tsne.png                          ← Feature space t-SNE
+├── anchor.png                   ← Anchor/query examples
+├── qkv_weight.png               ← QKV attention weights
+├── q_weights.png / k_weights.png / v_weights.png
+├── Swin.ipynb
+├── Swin_Transformer.ipynb
+├── swinT.ipynb
 └── Image_Similarity_Final_Report.pdf
 ```
 
